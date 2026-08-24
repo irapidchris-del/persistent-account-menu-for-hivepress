@@ -3,7 +3,7 @@ Tags: hivepress, account, menu, empty state, dashboard
 Requires at least: 5.8
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.6.4
+Stable tag: 1.6.6
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -27,7 +27,7 @@ Items are only forced when the matching extension is active, and vendor-only ite
 
 Under **HivePress - Settings - Default Menu Items** you can pick which menu items stay visible, and customise the button on each placeholder page: change its label, point it at a custom URL, or add a button to pages that have none by default.
 
-All texts are translatable under the `persistent-account-menu-for-hivepress` text domain, with a ready-made template in `languages/`. If you translate or reword them with Loco Translate, choose the **System** location when Loco asks where to save: that is WordPress's own `wp-content/languages/plugins/` folder, which is loaded automatically and, unlike the plugin's own folder, survives plugin updates. Two developer filters are provided: `hppam/v1/items` (adjust the managed items) and `hppam/v1/notice_html` (filter the rendered notice HTML).
+All texts are translatable under the `persistent-account-menu-for-hivepress` text domain, with a ready-made template in `languages/`. If you translate or reword them with Loco Translate, choose the **System** location when Loco asks where to save: that is WordPress's own `wp-content/languages/plugins/` folder, which is loaded automatically and, unlike the plugin's own folder, survives plugin updates. Three developer filters are provided: `hppam/v1/items` (adjust the managed items), `hppam/v1/notice_html` (filter the rendered notice HTML) and `hppam/v1/native_item` (decide for yourself whether a page counts as populated).
 
 == Installation ==
 
@@ -53,6 +53,25 @@ That is HivePress, not a setting in this plugin. The account home does not have 
 If your site sends members through an onboarding step (completing a vendor profile, for example) that step may now appear sooner. To land people somewhere else, untick the items you do not want at the top of the menu under HivePress, Settings, Default Menu Items.
 
 == Changelog ==
+
+= 1.6.6 =
+* Fixed - hiding an item from the account menu no longer empties the page behind it. If you use
+  another plugin to take an item off the menu, this one read that missing item as an empty page,
+  so the page itself showed the "nothing here yet" notice with its real contents wiped out, even
+  for a member with listings, bookings or messages sitting there. Whether a page is empty is now
+  judged only on what the extensions themselves put in the menu, and your own choices about which
+  items to show are left out of it.
+* Fixed - the changelog in the "View details" popup no longer loses the wording of a link. A link
+  whose wording contained a piece of code arrived with that wording replaced by a stray number,
+  and if the formatting ran into trouble a whole line could come through as bare numbers in place
+  of its links and code. Release notes are now put back together in full, and anything that still
+  cannot be restored is removed rather than shown.
+
+= 1.6.5 =
+* Fixed - updates are offered again. The 1.6.4 change that moved update checks into the background
+  filled a cache the rest of the plugin never read, so a published release was never shown on the
+  Plugins screen, "View details" opened an error, and the notice after pressing Check for updates
+  named no version. The cached answer is now read wherever WordPress asks.
 
 = 1.6.4 =
 * Fixed - checking for updates no longer holds up an admin page. The check ran while WordPress was

@@ -3,7 +3,7 @@
  * Plugin Name: Persistent Account Menu for HivePress
  * Plugin URI: https://github.com/irapidchris-del/Persistent-Account-Menu-for-HivePress
  * Description: Keeps HivePress account menu items visible even when they are empty, and replaces each empty page with a helpful notice, icon and button.
- * Version: 1.6.4
+ * Version: 1.6.6
  * Author: ChrisB @ HivePress Community
  * Author URI: https://community.hivepress.io/u/chrisb/summary
  * Text Domain: persistent-account-menu-for-hivepress
@@ -626,7 +626,12 @@ function is_vendor() {
  * Gets the probe flag, optionally setting it.
  *
  * While the flag is set, the menu filter skips adding forced items so the
- * native menu state can be inspected.
+ * native menu state can be inspected. The probe also lifts every late
+ * menu filter out of the way (see `suspend_menu_preferences()`), which
+ * already takes this plugin's own forcing filter with it. The flag is
+ * kept as the backstop: it is what still suppresses the forcing if the
+ * lifting ever cannot happen, and it would keep working if the forcing
+ * were ever hooked below the probe's priority ceiling.
  *
  * @param bool|null $set Flag value.
  * @return bool
@@ -642,38 +647,232 @@ function is_probing( $set = null ) {
 }
 
 /**
+ * The highest filter priority the probe still listens to.
+ *
+ * Every data-driven adder in the HivePress ecosystem registers at or
+ * below 100. Verified in the 1.7.28 reference on 2026-08-24: core at the
+ * default 10 (hivepress/includes/components/class-listing.php:70), the
+ * official extensions likewise at 10 (hivepress-messages
+ * /includes/components/class-message.php:62, hivepress-favorites
+ * /class-favorite.php:39, hivepress-bookings/class-booking.php:172,
+ * hivepress-requests/class-offer.php:103, hivepress-search-alerts
+ * /class-search-alert.php:48, hivepress-memberships
+ * /class-membership.php:140), Marketplace at 100
+ * (hivepress-marketplace/class-marketplace.php:136) and Vendor Analytics'
+ * own adder at 100. Every filter that expresses the OWNER'S PREFERENCE
+ * rather than the presence of data sits above it: Vendor Analytics hides
+ * Marketplace's dashboard at 200, Account Menu Enhancer hides at 1000,
+ * and this plugin's own forcing runs at 500. If a future extension ever
+ * ADDS an item above this ceiling, its page would be judged empty and
+ * given the notice; raise the ceiling above it, or answer for that one
+ * item through the `hppam/v1/native_item` filter.
+ */
+const PROBE_PRIORITY_CEILING = 100;
+
+/**
+ * The filters the probe reduces.
+ *
+ * Both menu filter stages have to be covered, and both class names with
+ * them. `Menu::__construct()` applies `hivepress/v1/menus/{name}` for the
+ * whole class chain (hivepress/includes/menus/class-menu.php:94) and
+ * `boot()` then applies `hivepress/v1/menus/{name}/items` the same way
+ * (:125), so for the account menu that is four hook names, not one. An
+ * item can be hidden at any of them: Account Menu Enhancer uses two of
+ * the four (class-amehp-menu-enhancer.php:57 and :69).
+ *
+ * THE FIFTH IS NOT A MENU HOOK, AND IT IS HERE BECAUSE THE PROBE TURNED
+ * OUT TO BE RE-ENTRANT. Core reads the WooCommerce account rows from
+ * inside its own account menu filter, only to label the Orders and
+ * Subscriptions items (hivepress/includes/components/class-woocommerce.php
+ * :441 and :449, registered at the default 10 at :80, so the reduction
+ * keeps it). Account Menu Enhancer answers on that WooCommerce hook at
+ * 999 (class-amehp-menu-enhancer.php:83) by building a SECOND account menu
+ * and memoising it on its own component for the rest of the request
+ * (:215). Left alone, that second build runs inside the probe with the
+ * hooks already reduced, so the owner's hidden items are baked into a
+ * cache the real WooCommerce menu then renders from: with Vendor Analytics
+ * set to hide the vendor dashboard, the hidden row came back in the
+ * WooCommerce menu. Reducing this hook as well lifts that 999 callback for
+ * the duration, so nothing re-enters and the cache is left for the real
+ * render to fill. It is the same kind of callback as the others here, an
+ * owner preference above the ceiling, and lifting it cannot change the
+ * verdict: the probe reads item PRESENCE, and core decides whether to add
+ * Orders and Subscriptions from the request context, taking only their
+ * labels from these rows. Backtraced and proved by execution on
+ * 2026-08-24.
+ */
+const PROBE_HOOKS = [
+	'hivepress/v1/menus/menu',
+	'hivepress/v1/menus/menu/items',
+	'hivepress/v1/menus/user_account',
+	'hivepress/v1/menus/user_account/items',
+	'woocommerce_account_menu_items',
+];
+
+/**
+ * Lifts the owner's menu customisers out of the way for one probe.
+ *
+ * WHY THIS EXISTS. The probe asks "does this account page have anything
+ * to show?" and reads the answer off the native menu, because a
+ * data-driven extension only adds its item when there is data behind it.
+ * A filter that hides an item because the owner asked for it hidden runs
+ * on the same hooks and is indistinguishable from here: the item is
+ * simply gone. Reading that as an absence of DATA is what shipped as a
+ * bug. A site owner who hid "Listings" in Account Menu Enhancer found
+ * that the Listings page itself, reached by bookmark or by any link
+ * outside the menu, showed the "no listings yet" notice with its real
+ * listing table blanked, while the vendor had six listings. Reproduced
+ * against this install on 2026-08-24. The rule: a late customiser
+ * expressing the owner's PREFERENCE must never be read as an absence of
+ * DATA.
+ *
+ * HOW, AND THE TRAP IN DOING IT THE OBVIOUS WAY. The unwanted callbacks
+ * are NOT unset from `$wp_filter[ $hook ]->callbacks`. Since WordPress
+ * 6.4 `WP_Hook` caches its priority list in its own protected
+ * `$priorities` property (wp-includes/class-wp-hook.php:44) and
+ * `::apply_filters()` iterates THAT, not the callbacks array (:335), so
+ * unsetting a priority behind its back leaves apply_filters() reading a
+ * key that no longer exists and PHP 8 fatals on the foreach. Instead a
+ * fresh `WP_Hook` is built through the public `add_filter()` with only
+ * the kept callbacks in it and swapped in for the duration. The original
+ * object is never touched, so restoring it is a single assignment, and
+ * any menu filter already part way through carries on iterating the
+ * object it started on.
+ *
+ * @param array<string, \WP_Hook> $suspended Replaced hook objects, filled in as the swap proceeds.
+ */
+function suspend_menu_preferences( &$suspended ) {
+	if ( ! isset( $GLOBALS['wp_filter'] ) || ! is_array( $GLOBALS['wp_filter'] ) ) {
+		return;
+	}
+
+	foreach ( PROBE_HOOKS as $hook ) {
+		$original = hp\get_array_value( $GLOBALS['wp_filter'], $hook );
+
+		if ( ! $original instanceof \WP_Hook ) {
+			continue;
+		}
+
+		$reduced = new \WP_Hook();
+		$lifted  = false;
+
+		foreach ( $original->callbacks as $priority => $callbacks ) {
+
+			// A priority that is not a number cannot be compared against
+			// the ceiling, so it is kept. Keeping a callback is the
+			// direction that changes nothing.
+			if ( is_numeric( $priority ) && $priority > PROBE_PRIORITY_CEILING ) {
+				$lifted = true;
+
+				continue;
+			}
+
+			foreach ( $callbacks as $callback ) {
+
+				// The priority is handed back exactly as it was keyed and
+				// never cast, so the rebuilt hook orders identically.
+				$reduced->add_filter( $hook, $callback['function'], $priority, $callback['accepted_args'] );
+			}
+		}
+
+		if ( ! $lifted ) {
+			continue;
+		}
+
+		// Recorded BEFORE the swap, into the caller's array by reference,
+		// so that a throw part way through this loop still leaves the
+		// caller holding every hook that has actually been replaced.
+		$suspended[ $hook ] = $original;
+
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Swapped, not overwritten: the original object is held in $suspended and put back by restore_menu_preferences() in the caller's finally, which the sniff cannot see.
+		$GLOBALS['wp_filter'][ $hook ] = $reduced;
+	}
+}
+
+/**
+ * Puts the suspended menu customisers back.
+ *
+ * Restoration is exact by construction: the original `WP_Hook` objects
+ * were set aside rather than modified, so this puts the same objects back
+ * where they were. It has to run even when the probe throws, which is why
+ * the caller does it in a `finally`.
+ *
+ * @param array<string, \WP_Hook> $suspended Replaced hook objects.
+ */
+function restore_menu_preferences( $suspended ) {
+	foreach ( $suspended as $hook => $original ) {
+
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- This IS the restore: it puts back the untouched object that suspend_menu_preferences() set aside a moment ago.
+		$GLOBALS['wp_filter'][ $hook ] = $original;
+	}
+}
+
+/**
  * Checks if an item is present in the native account menu.
  *
  * Extensions only add their item when there is data to show, so a missing
- * item means the page is empty. The native menu is built once per request
- * with forcing suppressed. Guarded against third-party route title
+ * item means the page is empty. The native menu is built once per user
+ * per request, with this plugin's forcing suppressed and the owner's own
+ * menu customisers lifted out of the way - see
+ * `suspend_menu_preferences()` for why that second part decides whether a
+ * page keeps its content. Guarded against third-party route title
  * callables that are unsafe outside their own context.
+ *
+ * The answer is cached per user id rather than per request, because
+ * anything that changes the current user mid-request (WP-CLI, a REST
+ * handler, a scheduled task calling `wp_set_current_user()`) would
+ * otherwise have one visitor's menu answered from another's, and this
+ * answer decides whether a page's real content is blanked.
  *
  * @param string $name Menu item name.
  * @return bool
  */
 function is_native_item( $name ) {
-	static $native_items = null;
+	static $native_items = [];
 
-	if ( null === $native_items ) {
-		is_probing( true );
+	$user_id = get_current_user_id();
+
+	if ( ! isset( $native_items[ $user_id ] ) ) {
+		$items     = null;
+		$suspended = [];
 
 		try {
-			$native_items = ( new \HivePress\Menus\User_Account() )->get_items();
+			suspend_menu_preferences( $suspended );
+
+			is_probing( true );
+
+			$items = ( new \HivePress\Menus\User_Account() )->get_items();
 		} catch ( \Throwable $e ) {
-			$native_items = null;
+			$items = null;
 		} finally {
 			is_probing( false );
+
+			restore_menu_preferences( $suspended );
 		}
 
-		if ( ! is_array( $native_items ) ) {
+		if ( ! is_array( $items ) ) {
 
-			// Fail safe: treat every item as populated.
-			$native_items = array_fill_keys( array_keys( get_items() ), true );
+			// Fail safe: treat every item as populated. This is the safe
+			// direction on purpose. A populated item shows no notice and
+			// blanks nothing, so a probe that could not run leaves every
+			// page exactly as its own extension rendered it.
+			$items = array_fill_keys( array_keys( get_items() ), true );
 		}
+
+		$native_items[ $user_id ] = $items;
 	}
 
-	return isset( $native_items[ $name ] );
+	$native = isset( $native_items[ $user_id ][ $name ] );
+
+	/**
+	 * Filters whether an account page counts as populated.
+	 *
+	 * Return false to replace the page with the empty-state notice,
+	 * true to leave the page exactly as its own extension rendered it.
+	 *
+	 * @hook hppam/v1/native_item
+	 */
+	return (bool) apply_filters( 'hppam/v1/native_item', $native, $name, $native_items[ $user_id ] );
 }
 
 /**
@@ -1097,8 +1296,14 @@ function get_version() {
  * @return array<string, string>|null
  */
 function get_release_data( $force = false ) {
-	$cached  = get_site_transient( UPDATE_CACHE_KEY );
-	$release = $force ? false : $cached;
+	$cached = get_site_transient( UPDATE_CACHE_KEY );
+
+	// A warm cache answers at once, whatever shape it holds: the background job below exists
+	// only to fill this cache, so it must be read here, or every scheduled fetch feeds an
+	// answer nothing ever consumes and no update is ever offered.
+	if ( ! $force && is_array( $cached ) ) {
+		return (array) $cached;
+	}
 
 	/*
 	 * A cold cache must not be filled from somebody's page load. WordPress asks every plugin for its
@@ -1117,22 +1322,20 @@ function get_release_data( $force = false ) {
 		return null;
 	}
 
-	if ( ! is_array( $release ) ) {
-		$release = fetch_latest_release();
+	$release = fetch_latest_release();
 
-		// A failed check must not erase what the last good one found. Overwriting a usable answer
-		// with an empty one took a genuinely pending update off the Plugins screen for an hour with
-		// nothing to say why.
-		if ( empty( $release['version'] ) && ! empty( $cached['version'] ) ) {
-			set_site_transient( UPDATE_CACHE_KEY, $cached, HOUR_IN_SECONDS );
+	// A failed check must not erase what the last good one found. Overwriting a usable answer
+	// with an empty one took a genuinely pending update off the Plugins screen for an hour with
+	// nothing to say why.
+	if ( empty( $release['version'] ) && ! empty( $cached['version'] ) ) {
+		set_site_transient( UPDATE_CACHE_KEY, $cached, HOUR_IN_SECONDS );
 
-			return (array) $cached;
-		}
-
-		// Failures are cached briefly so the lookup is not repeated on every
-		// admin page load.
-		set_site_transient( UPDATE_CACHE_KEY, $release, $release ? 6 * HOUR_IN_SECONDS : HOUR_IN_SECONDS );
+		return (array) $cached;
 	}
+
+	// Failures are cached briefly so the lookup is not repeated on every
+	// admin page load.
+	set_site_transient( UPDATE_CACHE_KEY, $release, $release ? 6 * HOUR_IN_SECONDS : HOUR_IN_SECONDS );
 
 	return (array) $release;
 }
@@ -1742,9 +1945,9 @@ function format_release_notes( $notes ) {
 
 		// Bare URLs, kept as plain text but shielded from the emphasis
 		// rules, so an underscore in a pasted URL is never eaten. This
-		// pattern must also refuse the token delimiter: restoration is
-		// single-pass, so a token swallowed into another token would
-		// come back as raw control bytes instead of its content.
+		// pattern still refuses the token delimiter, so a URL can never
+		// swallow an earlier placeholder and end up holding another
+		// token's HTML inside what is meant to be a plain URL.
 		$line = tokenise(
 			'/https?:\/\/[^\s\x1a]+/u',
 			$line,
@@ -1873,22 +2076,115 @@ function tokenise( $pattern, $line, &$tokens, $render ) {
 }
 
 /**
+ * How many times restoration may sweep one line.
+ *
+ * A token can only ever refer to a LOWER index than its own, because a
+ * token is stored after everything nested inside it, so a cycle cannot
+ * form and the sweeps always terminate on their own. The ceiling is here
+ * regardless, because the alternative to a cheap limit is a request that
+ * never comes back. Real nesting is one level deep (a code span inside
+ * link text), so ten is generous.
+ */
+const RESTORE_PASS_LIMIT = 10;
+
+/**
  * Restores tokenised spans into the transformed line.
+ *
+ * Restoration REPEATS, because a stored token can itself contain a
+ * placeholder. A Markdown link whose visible text holds a backticked code
+ * span is the ordinary case, and legal Markdown: the code span is lifted
+ * out first, so the link is stored as `<a href="...">the {token} docs</a>`
+ * and one pass put the anchor back and stopped. The reader was left with
+ * "the 0 docs" in the "View version details" popup and the code text
+ * gone. The delimiter itself never showed, because `wp_kses()` strips
+ * control bytes on the way out (wp-includes/kses.php:966, through
+ * `wp_kses_no_null()` at :2020, which drops \x0E-\x1F at :2025), which is
+ * exactly why the symptom read as a stray digit rather than as something
+ * obviously broken. Both this and the failure below were reproduced by
+ * execution on 2026-08-24.
+ *
+ * A sweep that returns null has hit a PCRE limit and a sweep that changes
+ * nothing has no more to do, so both end the loop and fall through to the
+ * strip below. That fall-through is the second half of the fix: the old
+ * code returned the line untouched on a PCRE failure, and every span held
+ * out of that line, code spans and links and bare URLs alike, reached the
+ * popup as a bare index digit.
+ *
+ * Anything still holding a placeholder when the sweeps end is STRIPPED
+ * rather than printed. A missing code span reads as an omission; half a
+ * placeholder reads as a broken plugin.
+ *
+ * The sweep pattern is deliberately not `/u`, unlike the patterns that
+ * ran before it. It matches one control byte and ASCII digits, so UTF-8
+ * mode would not change what it matches, and it would add a way to fail:
+ * `/u` makes PCRE reject a subject it reads as invalid UTF-8 outright,
+ * and a restoration that fails is the bug being fixed here.
  *
  * @param string $line Transformed line.
  * @param array  $tokens Token store.
  * @return string
  */
 function restore_tokens( $line, $tokens ) {
-	$result = preg_replace_callback(
-		"/\x1a(\\d+)\x1a/",
-		function ( $matches ) use ( $tokens ) {
-			return isset( $tokens[ (int) $matches[1] ] ) ? $tokens[ (int) $matches[1] ] : '';
-		},
-		$line
-	);
+	$passes = 0;
 
-	return null === $result ? $line : $result;
+	while ( false !== strpos( $line, "\x1a" ) && $passes < RESTORE_PASS_LIMIT ) {
+		++$passes;
+
+		$result = preg_replace_callback(
+			"/\x1a(\\d+)\x1a/",
+			function ( $matches ) use ( $tokens ) {
+				return isset( $tokens[ (int) $matches[1] ] ) ? $tokens[ (int) $matches[1] ] : '';
+			},
+			$line
+		);
+
+		if ( null === $result || $result === $line ) {
+			break;
+		}
+
+		$line = $result;
+	}
+
+	if ( false === strpos( $line, "\x1a" ) ) {
+		return $line;
+	}
+
+	/*
+	 * Strip the survivors with plain string functions and no pattern at
+	 * all. This branch is only ever reached because PCRE has just failed,
+	 * so a strip that itself depends on PCRE succeeding is no belt at
+	 * all: with the backtrack limit exhausted for both calls a pattern
+	 * strip left the index digit standing and the reader saw "the 0 docs"
+	 * all over again, which is the very symptom being fixed. Measured on
+	 * 2026-08-24 at pcre.backtrack_limit=0. A delimiter with no closing
+	 * partner keeps whatever followed it, exactly as it did before: only
+	 * a whole placeholder is a placeholder.
+	 */
+	$stripped = '';
+	$rest     = $line;
+
+	while ( true ) {
+		$start = strpos( $rest, "\x1a" );
+
+		if ( false === $start ) {
+			$stripped .= $rest;
+
+			break;
+		}
+
+		$stripped .= substr( $rest, 0, $start );
+		$rest      = substr( $rest, $start + 1 );
+
+		// Drop the index digits with it, but only when a closing
+		// delimiter proves they were an index and not the note's text.
+		$digits = strspn( $rest, '0123456789' );
+
+		if ( $digits && isset( $rest[ $digits ] ) && "\x1a" === $rest[ $digits ] ) {
+			$rest = substr( $rest, $digits + 1 );
+		}
+	}
+
+	return $stripped;
 }
 
 /**
