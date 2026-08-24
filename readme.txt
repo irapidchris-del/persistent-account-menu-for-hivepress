@@ -3,7 +3,7 @@ Tags: hivepress, account, menu, empty state, dashboard
 Requires at least: 5.8
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.6.6
+Stable tag: 1.6.7
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -53,6 +53,10 @@ That is HivePress, not a setting in this plugin. The account home does not have 
 If your site sends members through an onboarding step (completing a vendor profile, for example) that step may now appear sooner. To land people somewhere else, untick the items you do not want at the top of the menu under HivePress, Settings, Default Menu Items.
 
 == Changelog ==
+
+= 1.6.7 =
+* Fixed - deleting the plugin now also clears the update check's own leftovers and cancels its
+  background update check. Nothing else has changed in this release.
 
 = 1.6.6 =
 * Fixed - hiding an item from the account menu no longer empties the page behind it. If you use

@@ -3,7 +3,7 @@
  * Plugin Name: Persistent Account Menu for HivePress
  * Plugin URI: https://github.com/irapidchris-del/Persistent-Account-Menu-for-HivePress
  * Description: Keeps HivePress account menu items visible even when they are empty, and replaces each empty page with a helpful notice, icon and button.
- * Version: 1.6.6
+ * Version: 1.6.7
  * Author: ChrisB @ HivePress Community
  * Author URI: https://community.hivepress.io/u/chrisb/summary
  * Text Domain: persistent-account-menu-for-hivepress

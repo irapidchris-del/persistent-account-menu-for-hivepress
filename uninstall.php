@@ -20,7 +20,7 @@
  * apply unless they ticked the box.
  *
  * The cached release lookup goes either way, because it is regenerable runtime junk rather
- * than anything the owner made. The plugin schedules no actions, so there are none to clear.
+ * than anything the owner made. The updater schedules a background release refresh, cleared below.
  *
  * @package PersistentAccountMenu
  */
@@ -42,6 +42,28 @@ $hppam_delete_all = (bool) get_option( 'hp_hppam_delete_data' );
 // The updater's cached release lookup. A site transient lives under its own prefix, so
 // neither the option sweep below nor a plain delete_option() would ever reach it.
 delete_site_transient( 'hppam_github_release' );
+
+/*
+ * The updater's background release refresh, which used to be left scheduled.
+ *
+ * It is a queued job whose callback stops existing the moment the plugin does, so it is worse
+ * than debris: cron keeps firing a hook nothing answers. Unscheduled from both places it can
+ * live, because the refresh is queued through HivePress's scheduler (Action Scheduler) when
+ * HivePress is present and through WP-Cron when it is not.
+ *
+ * The updater's other site transients go the same way. Core's daily sweep clears expired site
+ * transients within about a day on single-site, which is why leaving them read as harmless; on
+ * multisite they live in wp_sitemeta and are only purged when something asks for them.
+ */
+delete_site_transient( 'hppam_github_release_reason' );
+delete_site_transient( 'hppam_github_release_rate_limit' );
+
+if ( function_exists( 'as_unschedule_all_actions' ) ) {
+	as_unschedule_all_actions( 'hppam_github_release_refresh', [], 'hivepress' );
+	as_unschedule_all_actions( 'hppam_github_release_refresh' );
+}
+
+wp_clear_scheduled_hook( 'hppam_github_release_refresh' );
 
 // Any other transient the plugin has ever set. Nothing writes one today, but a transient is
 // stored as "_transient_{name}" plus a separate "_transient_timeout_{name}" row, so the
