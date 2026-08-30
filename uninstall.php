@@ -65,6 +65,12 @@ if ( function_exists( 'as_unschedule_all_actions' ) ) {
 
 wp_clear_scheduled_hook( 'hppam_github_release_refresh' );
 
+// The retirement notice's stored dismissal. Deleted whichever way the "delete all data"
+// setting is set: it is a record of an interface being dismissed, not anything the owner
+// configured, and it sits outside the hp_hppam_ namespace the option sweep below matches,
+// so nothing else would ever reach it.
+delete_option( 'hppam_retirement_dismissed' );
+
 // Any other transient the plugin has ever set. Nothing writes one today, but a transient is
 // stored as "_transient_{name}" plus a separate "_transient_timeout_{name}" row, so the
 // prefix sweep used for options further down cannot match them: it anchors on "hp_hppam" at

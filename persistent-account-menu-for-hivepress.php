@@ -3,7 +3,7 @@
  * Plugin Name: Persistent Account Menu for HivePress
  * Plugin URI: https://github.com/irapidchris-del/Persistent-Account-Menu-for-HivePress
  * Description: Keeps HivePress account menu items visible even when they are empty, and replaces each empty page with a helpful notice, icon and button.
- * Version: 1.6.7
+ * Version: 1.6.8
  * Author: ChrisB @ HivePress Community
  * Author URI: https://community.hivepress.io/u/chrisb/summary
  * Text Domain: persistent-account-menu-for-hivepress
@@ -13,7 +13,7 @@
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Requires Plugins: hivepress
- * Update URI: https://github.com/irapidchris-del/Persistent-Account-Menu-for-HivePress
+ * Update URI: https://github.com/irapidchris-del/persistent-account-menu-for-hivepress
  *
  * @package PersistentAccountMenu
  */
@@ -2301,6 +2301,82 @@ function show_missing_hivepress_notice() {
 }
 
 add_action( 'admin_notices', __NAMESPACE__ . '\\show_missing_hivepress_notice' );
+
+/**
+ * Shows the retirement notice.
+ *
+ * This plugin was folded into Account Menu Enhancer for HivePress in that
+ * plugin's 3.0.0. Owners who have BOTH installed are already told by Account
+ * Menu Enhancer's own take-over notice, which can say more than this one can
+ * because it knows the settings were carried over. This notice exists for the
+ * only group nothing else reaches: owners who have this plugin and not that
+ * one.
+ *
+ * Dismissal is STORED, unlike the other notices in this file. The rest report a
+ * state that ought to be fixed, so returning on the next page load is the
+ * point. This one reports a decision the owner is entitled to decline: keeping
+ * this plugin and not migrating is a legitimate choice, and nagging forever
+ * about it would be the admin hijacking the other notices are careful to avoid.
+ *
+ * @return void
+ */
+function show_retirement_notice() {
+	if ( ! current_user_can( 'activate_plugins' ) ) {
+		return;
+	}
+
+	// Account Menu Enhancer is active and showing its own, better-informed notice.
+	if ( defined( 'AMEHP_VERSION' ) ) {
+		return;
+	}
+
+	if ( get_option( 'hppam_retirement_dismissed' ) ) {
+		return;
+	}
+
+	$hppam_dismiss_url = wp_nonce_url(
+		add_query_arg( 'hppam_dismiss_retirement', '1', self_admin_url( 'plugins.php' ) ),
+		'hppam_dismiss_retirement'
+	);
+
+	echo '<div class="notice notice-info"><p>' . wp_kses(
+		sprintf(
+			/* translators: 1: link to Account Menu Enhancer for HivePress, 2: link that dismisses this notice. */
+			__( 'Persistent Account Menu for HivePress has been folded into %1$s, which does everything this plugin does. Install it and your settings are carried across automatically, after which this plugin can be deactivated and deleted. Nothing breaks if you keep it. %2$s', 'persistent-account-menu-for-hivepress' ),
+			'<a href="https://github.com/irapidchris-del/menu-enhancer-for-hivepress" target="_blank" rel="noopener">Account Menu Enhancer for HivePress</a>',
+			'<a href="' . esc_url( $hppam_dismiss_url ) . '">' . esc_html__( 'Dismiss', 'persistent-account-menu-for-hivepress' ) . '</a>'
+		),
+		[
+			'a' => [
+				'href'   => [],
+				'target' => [],
+				'rel'    => [],
+			],
+		]
+	) . '</p></div>';
+}
+
+add_action( 'admin_notices', __NAMESPACE__ . '\\show_retirement_notice' );
+
+/**
+ * Stores the retirement notice's dismissal.
+ *
+ * @return void
+ */
+function handle_retirement_dismissal() {
+	if ( ! isset( $_GET['hppam_dismiss_retirement'] ) || ! current_user_can( 'activate_plugins' ) ) {
+		return;
+	}
+
+	check_admin_referer( 'hppam_dismiss_retirement' );
+
+	update_option( 'hppam_retirement_dismissed', '1' );
+
+	wp_safe_redirect( self_admin_url( 'plugins.php' ) );
+	exit;
+}
+
+add_action( 'admin_init', __NAMESPACE__ . '\\handle_retirement_dismissal' );
 
 /**
  * Gets the author's support page.

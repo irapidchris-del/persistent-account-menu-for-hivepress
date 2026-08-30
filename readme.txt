@@ -3,15 +3,19 @@ Tags: hivepress, account, menu, empty state, dashboard
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.7
+Stable tag: 1.6.8
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
-Keeps HivePress account menu items visible even when they are empty, and replaces each empty page with a helpful notice, icon and button.
+Superseded by Account Menu Enhancer for HivePress, which includes everything this plugin does. Existing installs keep working.
 
 == Description ==
 
-By default, HivePress and its extensions only show an account menu item once there is something to list: no favourites means no Favorites link, no bookings means no Bookings link. That keeps menus tidy, but it also hides features from new users. This plugin keeps the menu items in place and turns each empty page into a friendly empty state with a call to action.
+**This plugin has been folded into [Account Menu Enhancer for HivePress](https://github.com/irapidchris-del/menu-enhancer-for-hivepress), which does everything described below and more.**
+
+Install Account Menu Enhancer and your settings are carried across automatically, after which this plugin can be deactivated and deleted. While both are active, this one stands aside and Account Menu Enhancer does the work, so there is no rush and nothing to break. Keeping this plugin instead is a perfectly good choice: it continues to work as it always has.
+
+What it does, for anyone still reading: by default, HivePress and its extensions only show an account menu item once there is something to list: no favourites means no Favorites link, no bookings means no Bookings link. That keeps menus tidy, but it also hides features from new users. This plugin keeps the menu items in place and turns each empty page into a friendly empty state with a call to action.
 
 Items are only forced when the matching extension is active, and vendor-only items only appear for users with a vendor profile:
 
@@ -53,6 +57,14 @@ That is HivePress, not a setting in this plugin. The account home does not have 
 If your site sends members through an onboarding step (completing a vendor profile, for example) that step may now appear sooner. To land people somewhere else, untick the items you do not want at the top of the menu under HivePress, Settings, Default Menu Items.
 
 == Changelog ==
+
+= 1.6.8 =
+* This plugin is superseded by Account Menu Enhancer for HivePress, which includes everything it
+  does. A notice on the admin screens explains how to move across, and can be dismissed for good
+  if you would rather stay. Nothing about how this plugin works has changed, and existing installs
+  keep working.
+* Fixed - the update check pointed at the old capitalised address for this plugin's repository.
+  Updates still arrived, because the address forwards, but it is now correct.
 
 = 1.6.7 =
 * Fixed - deleting the plugin now also clears the update check's own leftovers and cancels its
