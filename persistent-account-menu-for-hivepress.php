@@ -934,7 +934,23 @@ function alter_account_menu( $menu ) {
 	}
 
 	// Mirror the Marketplace label when both order lists are present.
+	//
+	// The text domain below is Marketplace's, NOT ours, and that is deliberate.
+	// This reuses the exact string Marketplace ships
+	// (hivepress-marketplace/includes/components/class-marketplace.php:2637,
+	// msgid "Placed Orders" in its own POT) so our label reads identically to
+	// Marketplace's in every language Marketplace has been translated into.
+	// Re-domaining it to persistent-account-menu-for-hivepress would render
+	// English on a translated site until somebody translated our POT too, and
+	// would then let the two labels disagree about the same list - the opposite
+	// of what "mirror" means here. The branch is only reachable when Marketplace
+	// is active, so its .mo is already loaded by the time this runs.
+	//
+	// Plugin Check reports this as WordPress.WP.I18n.TextDomainMismatch. That is
+	// a correct reading of a wp.org rule we are knowingly outside: see
+	// resources/security-standards.md, "Borrowing another plugin's text domain".
 	if ( isset( $menu['items']['orders_edit'] ) && isset( $menu['items']['orders_view'] ) ) {
+		// phpcs:ignore WordPress.WP.I18n.TextDomainMismatch -- intentional reuse of Marketplace's string, see above.
 		$menu['items']['orders_view']['label'] = esc_html__( 'Placed Orders', 'hivepress-marketplace' );
 	}
 
@@ -1011,6 +1027,11 @@ function alter_routes( $routes ) {
 			$title = is_callable( $title ) ? call_user_func( $title ) : $title;
 
 			if ( is_user_logged_in() && hivepress()->translator->get_string( 'orders' ) === $title ) {
+				// Marketplace's text domain on purpose, mirroring its own route title
+				// (hivepress-marketplace/includes/controllers/class-marketplace.php:619).
+				// Same reasoning as the "Placed Orders" label in alter_account_menu()
+				// above - read that comment before "fixing" this one.
+				// phpcs:ignore WordPress.WP.I18n.TextDomainMismatch -- intentional reuse of Marketplace's string, see above.
 				$title = esc_html__( 'Received Orders', 'hivepress-marketplace' );
 			}
 

@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Persistent Account Menu for HivePress 1.6.5\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/persistent-account-menu-for-hivepress\n"
+"Report-Msgid-Bugs-To: https://github.com/irapidchris-del/Persistent-Account-Menu-for-HivePress/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
@@ -14,29 +14,9 @@ msgstr ""
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: persistent-account-menu-for-hivepress\n"
 
-#. Plugin Name of the plugin
-#: persistent-account-menu-for-hivepress.php
-msgid "Persistent Account Menu for HivePress"
-msgstr ""
-
-#. Plugin URI of the plugin
-#: persistent-account-menu-for-hivepress.php
-msgid "https://github.com/irapidchris-del/Persistent-Account-Menu-for-HivePress"
-msgstr ""
-
 #. Description of the plugin
 #: persistent-account-menu-for-hivepress.php
 msgid "Keeps HivePress account menu items visible even when they are empty, and replaces each empty page with a helpful notice, icon and button."
-msgstr ""
-
-#. Author of the plugin
-#: persistent-account-menu-for-hivepress.php
-msgid "ChrisB @ HivePress Community"
-msgstr ""
-
-#. Author URI of the plugin
-#: persistent-account-menu-for-hivepress.php
-msgid "https://community.hivepress.io/u/chrisb/summary"
 msgstr ""
 
 #: persistent-account-menu-for-hivepress.php:57

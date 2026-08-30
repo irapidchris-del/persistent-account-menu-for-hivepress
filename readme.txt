@@ -1,7 +1,7 @@
 === Persistent Account Menu for HivePress ===
 Tags: hivepress, account, menu, empty state, dashboard
 Requires at least: 5.8
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 1.6.7
 License: GPLv3
