@@ -3,7 +3,7 @@ Tags: hivepress, account, menu, empty state, dashboard
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.8
+Stable tag: 1.6.10
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -57,6 +57,11 @@ That is HivePress, not a setting in this plugin. The account home does not have 
 If your site sends members through an onboarding step (completing a vendor profile, for example) that step may now appear sooner. To land people somewhere else, untick the items you do not want at the top of the menu under HivePress, Settings, Default Menu Items.
 
 == Changelog ==
+
+= 1.6.10 =
+* Fixed: updating two of these extensions one after the other could fail on the second with "up to date" until Check for updates was pressed again. WordPress rebuilds its update list after each update by asking wordpress.org first, and gives up on the whole list when that call is slow; the plugin now keeps its own update in the list regardless.
+* Changed: a release found more than an hour ago is refreshed in the background whenever the Plugins screen is opened, so the newest release is offered rather than an intermediate one.
+* New: a Check for updates bulk action on the Plugins screen, which checks every selected extension in one go, and the row that says Updating no longer shrinks on phones.
 
 = 1.6.8 =
 * This plugin is superseded by Account Menu Enhancer for HivePress, which includes everything it
